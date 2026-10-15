@@ -1,0 +1,146 @@
+target-version = "py312"
+# These can be found in the guidelines 
+line-length = 79
+indent-width = 4
+
+[lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade — modernise syntax
+    "B",      # flake8-bugbear — likely bugs & design issues
+    "A",      # flake8-builtins — shadowing builtins
+    "C4",     # flake8-comprehensions — simplify comprehensions
+    "C90",    # mccabe complexity
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific rules
+    "S",      # flake8-bandit — security
+    "T20",    # flake8-print — no print statements
+    "PT",     # flake8-pytest-style
+    "Q",      # flake8-quotes
+    "RET",    # flake8-return
+    "ARG",    # flake8-unused-arguments
+    "PTH",    # flake8-use-pathlib — prefer pathlib over os.path
+    "ERA",    # eradicate — no commented-out code
+    "PL",     # pylint
+    "TRY",    # tryceratops — exception handling patterns
+    "PERF",   # perflint — performance anti-patterns
+    "FURB",   # refurb — modernise code
+    "LOG",    # flake8-logging
+    "G",      # flake8-logging-format
+    "ISC",    # flake8-implicit-str-concat
+    "ICN",    # flake8-import-conventions
+    "PIE",    # flake8-pie — misc cleanups
+    "RSE",    # flake8-raise
+    "SLF",    # flake8-self — private member access
+    "SLOT",   # flake8-slots
+    "TID",    # flake8-tidy-imports
+    "TC",     # flake8-type-checking — move type-only imports
+    "ANN",    # flake8-annotations — enforce type hints
+    "BLE",    # flake8-blind-except
+    "FBT",    # flake8-boolean-trap
+    "DTZ",    # flake8-datetimez — no naive datetimes
+    "EM",     # flake8-errmsg — no raw strings in exceptions
+    "EXE",    # flake8-executable
+    "FA",     # flake8-future-annotations
+    "INP",    # flake8-no-pep420 — no implicit namespace packages
+    "YTT",    # flake8-2020 — sys.version pitfalls
+    "PGH",    # pygrep-hooks
+    "FLY",    # flynt — f-string conversions
+    "D",      # pydocstyle — docstrings
+]
+
+ignore = [
+    # formatter handles these
+    "E501",    # line too long
+    "W191",    # indentation contains tabs
+    "E111",    # indentation not multiple of four spaces
+    "E114",    # indentation not multiple of four spaces (comment)
+    "E117",    # over-indented
+    "D206",    # docstring should be indented with spaces
+    "D300",    # use """triple double quotes"""
+    "Q000",    # single quotes found but double quotes preferred
+    "Q001",    # single quote multiline found
+    "Q002",    # single quote docstring found
+    "Q003",    # change outer quotes to avoid escaping
+    "ISC001",  # conflicts with formatter
+    "ISC002",  # conflicts with formatter
+    "COM812",  # missing trailing comma — conflicts with formatter
+
+    # too noisy for most projects, opt-in per project
+    "D100",    # missing docstring in public module
+    "D101",    # missing docstring in public class
+    "D102",    # missing docstring in public method
+    "D103",    # missing docstring in public function
+    "D104",    # missing docstring in public package
+    "D107",    # missing docstring in __init__
+    "FIX002",  # line contains TODO
+    "TD002",   # missing author in TODO
+    "TD003",   # missing issue link in TODO
+    "TRY003",  # long messages outside exception class — opinionated
+    "EM101",   # exception must not use string literal — opinionated
+    "EM102",   # exception must not use f-string — opinionated
+    "FBT001",  # boolean positional arg — too strict for most APIs
+    "FBT002",  # boolean default value — too strict for most APIs
+]
+
+fixable = ["ALL"]
+unfixable = [
+    "F841",    # unused variable — don't auto-delete, might be intentional
+    "ERA001",  # commented-out code — don't auto-delete
+]
+
+[lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",    # allow assert in tests
+    "ANN",     # no type hints required in tests
+    "D",       # no docstrings required in tests
+    "SLF001",  # allow private member access in tests
+    "ARG001",  # unused function argument (fixtures)
+    "PLR2004", # allow magic values in tests
+]
+"__init__.py" = [
+    "F401",    # allow unused imports (re-exports)
+]
+
+[lint.mccabe]
+max-complexity = 10 # How many if, else, for etc statements to allow in a function
+
+# I am not so sure, if this is a good idae or not!
+[lint.pylint]
+max-args = 7 
+max-branches = 10
+max-returns = 5
+max-statements = 30
+
+[lint.pydocstyle]
+convention = "numpy" # or google 
+
+[lint.flake8-annotations]
+suppress-none-returning = true    # no -> None required
+allow-star-arg-any = true         # allow *args: Any
+
+[lint.flake8-bandit]
+check-typed-exception = true
+
+[lint.flake8-tidy-imports]
+ban-relative-imports = "all"      # force absolute imports everywhere
+
+[lint.flake8-type-checking]
+strict = true                     # move all type-only imports under TYPE_CHECKING
+
+[lint.isort]
+known-first-party = ["new_project"]
+force-sort-within-sections = true
+
+
+[format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+

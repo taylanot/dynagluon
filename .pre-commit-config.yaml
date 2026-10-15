@@ -1,0 +1,54 @@
+exclude: '\.ruff\.toml$'
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff (lint)
+        entry: ruff check --fix
+        language: system
+        types: [python]
+
+      - id: ruff-format
+        name: ruff (format)
+        entry: ruff format
+        language: system
+        types: [python]
+
+      - id: ty
+        name: ty (type check)
+        entry: ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # python
+      - id: debug-statements
+      - id: check-ast
+      - id: check-builtin-literals
+      - id: check-docstring-first
+      # files & encoding
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: fix-byte-order-marker
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      # large files & secrets
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: detect-private-key
+      # config & data formats
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: pretty-format-json
+        args: ['--autofix']
+      # git
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: ['--branch', 'main', '--branch', 'develop']
