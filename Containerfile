@@ -1,7 +1,7 @@
 # Development Environment
 FROM ghcr.io/prefix-dev/pixi:latest AS dev
 
-WORKDIR /workspace
+WORKDIR /dynagluon
 
 CMD ["/bin/bash"]
 
@@ -14,13 +14,13 @@ RUN pixi install --locked && pixi shell-hook -s bash > /shell-hook
 # Deployment Environment
 FROM debian:bookworm-slim AS prod
 
-WORKDIR /workspace
+WORKDIR /dynagluon
 
 RUN apt update &&  \
     apt install -y --no-install-recommends ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /workspace/.pixi/envs/default /workspace/.pixi/envs/default
+COPY --from=build /dynagluon/.pixi/envs/default /dynagluon/.pixi/envs/default
 COPY --from build /shell-hook /shell-hook
 
 RUN echo '#!/bin/bash\nsource /shell-hook\nexec "$@"' > /entry.sh && \

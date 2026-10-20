@@ -13,6 +13,6 @@ channels = ["conda-forge"]
 platforms = ["linux-aarch64"]
 
 [tool.pixi.pypi-dependencies]
-workspace = { path = ".", editable = true }
+dynagluon = { path = ".", editable = true }
 
 [tool.pixi.tasks]
