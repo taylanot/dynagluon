@@ -1,0 +1,55 @@
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# AutoGluon & Machine Learning Artifacts
+# Default folders where AutoGluon saves trained mod
+AutogluonModels/
+agModels-*
+*.pkl
+*.joblib
+*.onnx
+
+# Data files (keep raw large datasets out of Git)
+data/
+*.csv
+*.parquet
+*.feather
+
+# Dynaconf & Secrets
+.secrets.*
+settings.local.*
+*.local.yaml
+*.local.toml
+.env
+
+# Packaging & Builds (Hatchling / Setuptools)
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing & Code Quality
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# IDEs & Operating Systems
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
