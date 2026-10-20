@@ -1,7 +1,7 @@
 [project]
-dependencies = []
+dependencies = ["autogluon-tabular[all]>=1.6.3,<2", "dynaconf>=3.3.5,<4"]
 name = "dynagluon"
-requires-python = ">= 3.11"
+requires-python = ">=3.9, <3.12"
 version = "0.1.0"
 
 [build-system]
@@ -10,7 +10,8 @@ requires = ["hatchling"]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
-platforms = ["linux-aarch64"]
+platforms = ["linux-aarch64", "linux-64"]
+
 
 [tool.pixi.pypi-dependencies]
 dynagluon = { path = ".", editable = true }
