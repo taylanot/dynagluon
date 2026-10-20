@@ -1,6 +1,6 @@
 [project]
 dependencies = []
-name = "workspace"
+name = "dynagluon"
 requires-python = ">= 3.11"
 version = "0.1.0"
 
