@@ -31,3 +31,21 @@ COPY . .
 
 ENTRYPOINT ["/entry.sh"]
 CMD ["python", "main.py"]
+
+# This is for uv
+FROM python:3.10-slim  AS dev-uv
+
+# Grab the uv binary
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+WORKDIR /dynagluon
+
+# Cache dependencies
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen
+
+# Copy source code
+COPY . .
+
+# Run your CLI directly
+ENTRYPOINT ["uv", "run", "dynagluon"]
