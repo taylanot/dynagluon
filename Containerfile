@@ -1,4 +1,4 @@
-# Development Environment 
+# Development Environment
 FROM ghcr.io/prefix-dev/pixi:latest AS dev
 
 WORKDIR /workspace
