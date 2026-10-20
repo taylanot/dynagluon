@@ -12,4 +12,7 @@ RUN uv tool install prek && \
 ENV PATH="/root/.local/bin:$PATH"
 
 WORKDIR /workspace
+
+RUN git config --global --add safe.directory '*'
+
 ENTRYPOINT ["prek", "run", "--all-files"]
