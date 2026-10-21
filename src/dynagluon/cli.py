@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 # Internal
-from dynagluon.utils import load_config, setup_logger
+from dynagluon.utils import Config, setup_logger
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         '-v', '--verbose', action='store_true', help='Enable debug logging'
+    )
+    parser.add_argument(
+        '--env',
+        default=None,
+        help='Active environment to load from configuration (e.g. dev, prod)',
     )
     subparsers = parser.add_subparsers(dest='command', required=True)
 
@@ -110,8 +115,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Configure system logging from settings.yaml, try not playing with it
-    settings = load_config('settings.yaml')
+    # Configure system logging from settings.yaml
+    settings = Config.load('settings.yaml', env=args.env)
     setup_logger(settings)
 
     # Override logging level if verbose flag is set
@@ -126,10 +131,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # Execute training workflow
     if args.command == 'train':
-        config_dict = load_config(args.config, namespace='train')
-        logger.info('Training configuration: %s', config_dict)
-        # TODO: engine = DynaGluonEngine(config=config_dict)
+        config = Config.load(args.config, namespace='train', env=args.env)
+        logger.info('Training configuration: %s', config.to_dict())
+        # TODO: engine = DynaGluonEngine(config=config.to_dict())
         # TODO: engine.train(train_data=args.data)
+        # TODO: config.save(args.output_dir / 'config.yaml')
 
     # Execute retraining workflow
     if args.command == 'retrain':
@@ -146,17 +152,17 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
         # Check for 'retrain' section first, fallback to 'train' section
-        config_dict = load_config(config_path, namespace='retrain')
-        if not config_dict:
-            config_dict = load_config(config_path, namespace='train')
+        config = Config.load(config_path, namespace='retrain', env=args.env)
+        if not config:
+            config = Config.load(config_path, namespace='train', env=args.env)
 
         logger.info(
             'Retraining configuration loaded from %s: %s',
             config_path,
-            config_dict,
+            config.to_dict(),
         )
         # TODO: engine = DynaGluonEngine.load(args.model_path)
-        # TODO: engine.retrain(train_data=args.data, config=config_dict)
+        # TODO: engine.retrain(train_data=args.data, config=config.to_dict())
 
     # Execute prediction workflow
     if args.command == 'predict':
@@ -164,8 +170,8 @@ def main(argv: list[str] | None = None) -> int:
             logger.error('Model path does not exist: %s', args.model_path)
             return 1
 
-        config_dict = load_config(args.config, namespace='predict')
-        logger.info('Prediction configuration: %s', config_dict)
+        config = Config.load(args.config, namespace='predict', env=args.env)
+        logger.info('Prediction configuration: %s', config.to_dict())
         # TODO: engine = DynaGluonEngine.load(args.model_path)
         # TODO: engine.predict(data=args.data, output=args.output)
 
