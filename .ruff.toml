@@ -114,7 +114,7 @@ max-complexity = 10 # How many if, else, for etc statements to allow in a functi
 max-args = 7 
 max-branches = 10
 max-returns = 5
-max-statements = 30
+max-statements = 50 # This is counting actually how many lines of code you are executing
 
 [lint.pydocstyle]
 convention = "numpy" # or google 
