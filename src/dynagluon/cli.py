@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 import sys
 
+from dynagluono.engine import TabDynaGluonEngine
+
 # Internal
 from dynagluon.utils import Config, setup_logger
 
@@ -133,9 +135,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == 'train':
         config = Config.load(args.config, namespace='train', env=args.env)
         logger.info('Training configuration: %s', config.to_dict())
-        # TODO: engine = DynaGluonEngine(config=config.to_dict())
-        # TODO: engine.train(train_data=args.data)
-        # TODO: config.save(args.output_dir / 'config.yaml')
+        engine = TabDynaGluonEngine(config=config.to_dict())
+        engine.train(train_data=args.data)
+        config.save(args.output_dir / 'config.yaml')
 
     # Execute retraining workflow
     if args.command == 'retrain':
@@ -161,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
             config_path,
             config.to_dict(),
         )
-        # TODO: engine = DynaGluonEngine.load(args.model_path)
+        # TODO: engine = TabDynaGluonEngine.load(args.model_path)
         # TODO: engine.retrain(train_data=args.data, config=config.to_dict())
 
     # Execute prediction workflow
@@ -172,8 +174,8 @@ def main(argv: list[str] | None = None) -> int:
 
         config = Config.load(args.config, namespace='predict', env=args.env)
         logger.info('Prediction configuration: %s', config.to_dict())
-        # TODO: engine = DynaGluonEngine.load(args.model_path)
-        # TODO: engine.predict(data=args.data, output=args.output)
+        engine = TabDynaGluonEngine.load(args.model_path)
+        engine.predict(data=args.data, output=args.output)
 
     return 0
 
