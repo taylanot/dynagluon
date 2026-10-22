@@ -1,6 +1,7 @@
 """Utility functions for logging and configuration management."""
 
 from dataclasses import dataclass, field
+import importlib
 import json
 import logging
 import logging.config
@@ -204,3 +205,61 @@ def load_config(
         Loaded Config instance.
     """
     return Config.load(path=path, namespace=namespace, env=env)
+
+
+def resolve_config(cfg: object) -> object:
+    """
+    Recursively search a dictionary and dynamically instantiate Python objects.
+
+    If the `_target_` key is present, the dictionary is used to instantiate
+    the specified class. Otherwise, it returns the primitive configuration.
+
+    * This function is the corner stone of taking ranges from the configuration
+    files. This is relatively slow function as it imports, and you have to make
+    sure that you give the full library import e.g. "numpy.random.randn"
+
+    Parameters
+    ----------
+    cfg : object
+        The configuration dictionary, list, or primitive value to resolve.
+
+    Returns
+    -------
+    object
+        The resolved configuration, which may include instantiated objects.
+
+    Raises
+    ------
+    ValueError
+        If an object fails to instantiate.
+    """
+    if isinstance(cfg, dict):
+        # Allow converting dicts that define a dynamic object class
+        if '_target_' in cfg:
+            # Parse everything else in the dict recursively first (these are kwargs)
+            kwargs = {
+                k: resolve_config(v) for k, v in cfg.items() if k != '_target_'
+            }
+
+            target_str = str(cfg['_target_'])
+            try:
+                module_name, class_name = target_str.rsplit('.', 1)
+                module = importlib.import_module(module_name)
+                target_class = getattr(module, class_name)
+
+                logger.debug('Instantiating: %s with %s', target_str, kwargs)
+                return target_class(**kwargs)
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to instantiate target '{target_str}': {e}"
+                ) from e
+
+        # Standard dictionary recursion
+        return {k: resolve_config(v) for k, v in cfg.items()}
+
+    if isinstance(cfg, list):
+        # Recurse through lists
+        return [resolve_config(item) for item in cfg]
+
+    # Return as-is for primitive types
+    return cfg
