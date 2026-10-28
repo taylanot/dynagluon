@@ -1,0 +1,12 @@
+default:
+  train:
+    target_column: "target"
+    save_path: "AutogluonModels/"
+    autogluon_fit_kwargs:
+      time_limit: 5
+      presets: "optimize_for_deployment"
+      ag_args_ensemble:
+        fold_fitting_strategy: "sequential_local" # Prevent multi-processing issues
+      hyperparameters:
+        GBM:
+          num_boost_round: 2
