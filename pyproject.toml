@@ -21,6 +21,7 @@ dynagluon = { path = ".", editable = true }
 
 [tool.pixi.environments]
 test = { features = ["test"] }
+lint = { features = ["lint"], no-default-feature = true }
 
 [tool.pixi.feature.test.dependencies]
 pytest = "*"
@@ -32,5 +33,17 @@ pandas = "*"
 
 [tool.pixi.feature.test.tasks]
 test = "pytest tests/ --cov=src/dynagluon --cov-report=term-missing"
+
+[tool.pixi.feature.lint.dependencies]
+python = ">=3.9, <3.12"
+ruff = "*"
+
+[tool.pixi.feature.lint.pypi-dependencies]
+ty = "*"
+
+[tool.pixi.feature.lint.tasks]
+lint = "ruff check"
+format = "ruff format"
+typecheck = "ty check"
 
 [tool.pixi.tasks]
