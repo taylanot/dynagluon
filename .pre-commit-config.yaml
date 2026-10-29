@@ -5,7 +5,7 @@ repos:
     hooks:
       - id: ruff-check
         name: ruff (lint)
-        entry: ruff check --fix
+        entry: ruff check --fix --no-unsafe-fixes
         language: system
         types: [python]
         exclude: ^tests/
