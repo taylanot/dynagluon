@@ -2,7 +2,8 @@ target-version = "py312"
 # These can be found in the guidelines 
 line-length = 79
 indent-width = 4
-
+# Exculude the tests directory.
+extend-exclude = ["tests"]
 [lint]
 select = [
     "E",      # pycodestyle errors

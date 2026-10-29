@@ -8,12 +8,14 @@ repos:
         entry: ruff check --fix
         language: system
         types: [python]
+        exclude: ^tests/
 
       - id: ruff-format
         name: ruff (format)
         entry: ruff format
         language: system
         types: [python]
+        exclude: ^tests/
 
       - id: ty
         name: ty (type check)
@@ -21,7 +23,7 @@ repos:
         args: ["--ignore", "unresolved-import"]
         language: system
         types: [python]
-        pass_filenames: false
+        exclude: ^tests/
 
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
