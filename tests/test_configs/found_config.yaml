@@ -1,0 +1,15 @@
+default:
+  train:
+    target_column: "target"
+    save_path: "AutogluonModels" # will be replaced dynamically
+    autogluon_fit_kwargs:
+      time_limit: 5
+      presets: "optimize_for_deployment"
+      ag_args_ensemble:
+        fold_fitting_strategy: "sequential_local"
+      hyperparameters:
+        MITRA:
+
+  predict:
+    target_column: "target"
+    save_path: "AutogluonModels" # will be replaced dynamically

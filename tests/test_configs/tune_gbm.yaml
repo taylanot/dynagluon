@@ -1,0 +1,25 @@
+default:
+  train:
+    target_column: "target"
+    save_path: "AutogluonModels/temp_gbm"
+    autogluon_fit_kwargs:
+      time_limit: 10
+      presets: "optimize_for_deployment"
+      ag_args_ensemble:
+        fold_fitting_strategy: "sequential_local"
+      hyperparameters:
+        GBM:
+          num_boost_round: 10
+          learning_rate:
+            _target_: "autogluon.common.space.Real"
+            lower: 0.01
+            upper: 0.1
+            log: True
+          num_leaves:
+            _target_: "autogluon.common.space.Int"
+            lower: 10
+            upper: 50
+      hyperparameter_tune_kwargs:
+        searcher: "random"
+        scheduler: "local"
+        num_trials: 2

@@ -83,3 +83,53 @@ def test_cli_train_predict(tmp_path):
     # Verify predictions output was generated
     res_df = pd.read_csv(str(out_csv))
     assert 'predicted_target' in res_df.columns
+
+def test_cli_data_not_exists(tmp_path):
+    with patch('sys.argv', ['dynagluon', 'train', '--data', str(tmp_path / 'non_existent.csv')]):
+        ret = cli.main()
+        assert ret == 1
+
+
+def test_cli_predict_model_not_exists(tmp_path):
+    test_path = tmp_path / 'test.csv'
+    test_path.touch()
+    with patch('sys.argv', ['dynagluon', 'predict', '--model-path', str(tmp_path / 'non_existent_model'), '--data', str(test_path)]):
+        ret = cli.main()
+        assert ret == 1
+
+
+def test_cli_retrain_model_not_exists(tmp_path):
+    train_path = tmp_path / 'train.csv'
+    train_path.touch()
+    with patch('sys.argv', ['dynagluon', 'retrain', '--model-path', str(tmp_path / 'non_existent_model'), '--data', str(train_path)]):
+        ret = cli.main()
+        assert ret == 1
+
+
+def test_cli_retrain_config_not_exists(tmp_path):
+    train_path = tmp_path / 'train.csv'
+    train_path.touch()
+    model_path = tmp_path / 'model'
+    model_path.mkdir()
+    with patch('sys.argv', ['dynagluon', 'retrain', '--model-path', str(model_path), '--data', str(train_path)]):
+        ret = cli.main()
+        assert ret == 1
+
+
+def test_cli_verbose_flag(tmp_path):
+    with patch('sys.argv', ['dynagluon', '-v', 'train', '--data', str(tmp_path / 'non_existent.csv')]):
+        ret = cli.main()
+        assert ret == 1
+
+
+def test_cli_retrain_basic(tmp_path):
+    train_path = tmp_path / 'train.csv'
+    train_path.write_text("a,b,target\n1,2,0\n")
+    model_path = tmp_path / 'model'
+    model_path.mkdir()
+    config_path = model_path / 'config.yaml'
+    config_path.write_text("train:\n  target_column: target\n")
+    with patch('sys.argv', ['dynagluon', 'retrain', '--model-path', str(model_path), '--data', str(train_path)]):
+        ret = cli.main()
+        # Right now retrain is just a TODO in cli.py, it should return 0 at the end
+        assert ret == 0

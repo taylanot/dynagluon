@@ -113,7 +113,9 @@ class TabDynaGluonEngine:
         return self.predictor
 
     @classmethod
-    def load(cls, path: str) -> 'TabDynaGluonEngine':
+    def load(
+        cls, path: str, config_dict: dict[str, object] | None = None
+    ) -> 'TabDynaGluonEngine':
         """
         Load a trained engine for inference.
 
@@ -121,15 +123,17 @@ class TabDynaGluonEngine:
         ----------
         path : str
             Path to the saved TabularPredictor model.
+        config_dict : dict of str to object, optional
+            Configuration dictionary for inference.
 
         Returns
         -------
         DynaGluonEngine
             Instantiated engine with loaded predictor.
         """
-        engine = cls(
-            config_dict={'save_path': path}
-        )  # Empty config for inference
+        config = config_dict or {}
+        config['save_path'] = path
+        engine = cls(config_dict=config)
         engine.predictor = TabularPredictor.load(path)
         return engine
 
@@ -168,9 +172,20 @@ class TabDynaGluonEngine:
         # 1. Read Test Data with Pandas
         ag_test_data = self._load_data(test_data_path)
 
-        # 2. Predict (Returns a Pandas Series or DataFrame)
+        # 2. Extract specific model name if provided in config
+        model_to_use = self.config.get('model', None)
+        if model_to_use:
+            logger.info('Using specific model from config: %s', model_to_use)
+        else:
+            logger.info(
+                'No specific model provided, using default (best) model.'
+            )
+
+        # 3. Predict (Returns a Pandas Series or DataFrame)
         logger.info('Running predictions...')
-        predictions_pd = self.predictor.predict(ag_test_data)
+        predictions_pd = self.predictor.predict(
+            ag_test_data, model=model_to_use
+        )
 
         # 3. Attach the predictions as a new column to the input data
         pred_column_name = f'predicted_{self.predictor.label}'

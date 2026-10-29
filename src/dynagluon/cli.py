@@ -178,7 +178,9 @@ def main(argv: list[str] | None = None) -> int:
 
         config = Config.load(args.config, namespace='predict', env=args.env)
         logger.info('Prediction configuration: %s', config.to_dict())
-        engine = TabDynaGluonEngine.load(str(args.model_path))
+        engine = TabDynaGluonEngine.load(
+            str(args.model_path), config_dict=config.to_dict()
+        )
         engine.predict(
             test_data_path=str(args.data), output_path=str(args.output)
         )

@@ -77,12 +77,7 @@ class Config:
 
         if namespace:
             val = dynaconf_obj.get(namespace, {})
-            if hasattr(val, 'to_dict'):
-                extracted = val.to_dict()
-            elif isinstance(val, dict):
-                extracted = val
-            else:
-                extracted = {}
+            extracted = val if isinstance(val, dict) else {}
         else:
             extracted = dynaconf_obj.to_dict()
 
@@ -180,6 +175,11 @@ def setup_logger(settings: Config | dict[str, object] | None = None) -> None:
             level=logging.INFO,
             format='%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
         )
+
+    # Force AutoGluon to use our logging configuration
+    ag_logger = logging.getLogger('autogluon')
+    ag_logger.handlers.clear()
+    ag_logger.propagate = True
 
 
 def load_config(

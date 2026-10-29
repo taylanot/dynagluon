@@ -70,3 +70,41 @@ def test_engine_load(dummy_data, dummy_config):
 
     assert os.path.exists(out_csv)
     assert len(preds_df) == 20
+
+def test_engine_predict_specific_model(dummy_data, dummy_config, tmp_path):
+    train_csv, test_csv = dummy_data
+
+    # 1. Train normally
+    engine = TabDynaGluonEngine(config_dict=dummy_config)
+    engine.train(train_csv)
+
+    # 2. Get a valid model name that was just trained
+    trained_models = engine.predictor.model_names()
+    assert len(trained_models) > 0
+    specific_model = trained_models[0] # Just pick the first available model
+
+    # 3. Create a special config file with this model name
+    special_config_path = tmp_path / 'special_predict_config.yaml'
+    special_config_content = f"""
+default:
+  predict:
+    model: "{specific_model}"
+"""
+    special_config_path.write_text(special_config_content)
+
+    # 4. Load the config similar to how the CLI does
+    predict_config = Config.load(str(special_config_path), namespace='predict')
+
+    # 5. Load engine using the config
+    loaded_engine = TabDynaGluonEngine.load(
+        dummy_config['save_path'],
+        config_dict=predict_config.to_dict()
+    )
+
+    # 6. Predict (this will internally use the model specified in the config)
+    out_csv = str(tmp_path / 'preds_specific.csv')
+    preds_df = loaded_engine.predict(test_csv, output_path=out_csv)
+
+    assert os.path.exists(out_csv)
+    assert len(preds_df) == 20
+    assert loaded_engine.config.get('model') == specific_model
