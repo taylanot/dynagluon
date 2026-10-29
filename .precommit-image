@@ -15,4 +15,4 @@ WORKDIR /workspace
 
 RUN git config --global --add safe.directory '*'
 
-ENTRYPOINT ["prek", "run", "--all-files"]
+ENTRYPOINT ["prek", "run"]

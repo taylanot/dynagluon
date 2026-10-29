@@ -1,4 +1,4 @@
-exclude: '\.ruff\.toml$'
+exclude: '(\.ruff\.toml$|^tests/)'
 
 repos:
   - repo: local
@@ -20,7 +20,7 @@ repos:
       - id: ty
         name: ty (type check)
         entry: ty check
-        args: ["--ignore", "unresolved-import"]
+        args: ["--ignore", "unresolved-import", "--exclude", "tests"]
         language: system
         types: [python]
         exclude: ^tests/
