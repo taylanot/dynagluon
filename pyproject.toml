@@ -13,10 +13,24 @@ requires = ["hatchling"]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
-platforms = ["linux-aarch64", "linux-64"]
+platforms = ["linux-aarch64","linux-64"]
 
 
 [tool.pixi.pypi-dependencies]
 dynagluon = { path = ".", editable = true }
+
+[tool.pixi.environments]
+test = { features = ["test"] }
+
+[tool.pixi.feature.test.dependencies]
+pytest = "*"
+pytest-cov = "*"
+
+[tool.pixi.feature.test.pypi-dependencies]
+scikit-learn = "*"
+pandas = "*"
+
+[tool.pixi.feature.test.tasks]
+test = "pytest tests/ --cov=src/dynagluon --cov-report=term-missing"
 
 [tool.pixi.tasks]
