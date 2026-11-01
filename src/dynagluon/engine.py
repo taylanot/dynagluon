@@ -6,7 +6,7 @@ from pathlib import Path
 from autogluon.tabular import TabularPredictor
 import pandas as pd
 
-from dynagluon.utils import resolve_config
+from dynagluon.utils import resolve_config, setup_logger
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +84,10 @@ class TabDynaGluonEngine:
         """
         if not self.target_column:
             raise ValueError("Configuration must define 'target_column'.")
+
+        # Configure file logging to save_path/run.log if enabled
+        if self.config.get('log_to_file', True) and self.save_path:
+            setup_logger(log_file=Path(self.save_path) / 'run.log')
 
         logger.info('Loading data from %s...', train_data_path)
 

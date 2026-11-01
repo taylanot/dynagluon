@@ -100,6 +100,72 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_train(args: argparse.Namespace, settings: Config) -> int:
+    raw_config = Config.load(args.config, env=args.env)
+    log_to_file = bool(raw_config.get('log_to_file', True))
+
+    config = Config.load(args.config, namespace='train', env=args.env)
+    config_dict = config.to_dict()
+    if 'log_to_file' not in config_dict:
+        config_dict['log_to_file'] = log_to_file
+
+    save_path = str(config_dict.get('save_path', 'AutogluonModels/'))
+    if log_to_file and save_path:
+        setup_logger(settings, log_file=Path(save_path) / 'run.log')
+
+    logger.info('Training configuration: %s', config_dict)
+    engine = TabDynaGluonEngine(config_dict=config_dict)
+    engine.train(train_data_path=str(args.data))
+
+    # Save config into the model output folder for record-keeping
+    model_save_path = engine.save_path
+    Path(model_save_path).mkdir(parents=True, exist_ok=True)
+    config.save(Path(model_save_path) / 'config.yaml')
+    return 0
+
+
+def _run_retrain(args: argparse.Namespace) -> int:
+    if not args.model_path.exists():
+        logger.error('Model path does not exist: %s', args.model_path)
+        return 1
+
+    config_path = args.model_path / args.config
+    if not config_path.exists():
+        logger.error(
+            'Configuration file not found in model directory: %s',
+            config_path,
+        )
+        return 1
+
+    # Check for 'retrain' section first, fallback to 'train' section
+    config = Config.load(config_path, namespace='retrain', env=args.env)
+    if not config:
+        config = Config.load(config_path, namespace='train', env=args.env)
+
+    logger.info(
+        'Retraining configuration loaded from %s: %s',
+        config_path,
+        config.to_dict(),
+    )
+    # TODO: engine = TabDynaGluonEngine.load(args.model_path)
+    # TODO: engine.retrain(train_data=args.data, config=config.to_dict())
+    return 0
+
+
+def _run_predict(args: argparse.Namespace) -> int:
+    if not args.model_path.exists():
+        logger.error('Model path does not exist: %s', args.model_path)
+        return 1
+
+    config = Config.load(args.config, namespace='predict', env=args.env)
+    logger.info('Prediction configuration: %s', config.to_dict())
+    engine = TabDynaGluonEngine.load(
+        str(args.model_path), config_dict=config.to_dict()
+    )
+    engine.predict(test_data_path=str(args.data), output_path=str(args.output))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """
     Parse command-line arguments and run the requested workflow.
@@ -131,59 +197,14 @@ def main(argv: list[str] | None = None) -> int:
         logger.error('Data file does not exist: %s', args.data)
         return 1
 
-    # Execute training workflow
-    if args.command == 'train':
-        config = Config.load(args.config, namespace='train', env=args.env)
-        logger.info('Training configuration: %s', config.to_dict())
-        engine = TabDynaGluonEngine(config_dict=config.to_dict())
-        engine.train(train_data_path=str(args.data))
-
-        # Save config into the model output folder for record-keeping
-        model_save_path = engine.save_path
-        Path(model_save_path).mkdir(parents=True, exist_ok=True)
-        config.save(Path(model_save_path) / 'config.yaml')
-
-    # Execute retraining workflow
-    if args.command == 'retrain':
-        if not args.model_path.exists():
-            logger.error('Model path does not exist: %s', args.model_path)
-            return 1
-
-        config_path = args.model_path / args.config
-        if not config_path.exists():
-            logger.error(
-                'Configuration file not found in model directory: %s',
-                config_path,
-            )
-            return 1
-
-        # Check for 'retrain' section first, fallback to 'train' section
-        config = Config.load(config_path, namespace='retrain', env=args.env)
-        if not config:
-            config = Config.load(config_path, namespace='train', env=args.env)
-
-        logger.info(
-            'Retraining configuration loaded from %s: %s',
-            config_path,
-            config.to_dict(),
-        )
-        # TODO: engine = TabDynaGluonEngine.load(args.model_path)
-        # TODO: engine.retrain(train_data=args.data, config=config.to_dict())
-
-    # Execute prediction workflow
-    if args.command == 'predict':
-        if not args.model_path.exists():
-            logger.error('Model path does not exist: %s', args.model_path)
-            return 1
-
-        config = Config.load(args.config, namespace='predict', env=args.env)
-        logger.info('Prediction configuration: %s', config.to_dict())
-        engine = TabDynaGluonEngine.load(
-            str(args.model_path), config_dict=config.to_dict()
-        )
-        engine.predict(
-            test_data_path=str(args.data), output_path=str(args.output)
-        )
+    handlers = {
+        'train': lambda: _run_train(args, settings),
+        'retrain': lambda: _run_retrain(args),
+        'predict': lambda: _run_predict(args),
+    }
+    handler = handlers.get(args.command)
+    if handler:
+        return handler()
 
     return 0
 

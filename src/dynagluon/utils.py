@@ -153,7 +153,10 @@ class Config:
         return bool(self.data)
 
 
-def setup_logger(settings: Config | dict[str, object] | None = None) -> None:
+def setup_logger(
+    settings: Config | dict[str, object] | None = None,
+    log_file: str | Path | None = None,
+) -> None:
     """
     Initialize logging from a Config instance or dictionary if present, else fallback.
 
@@ -161,6 +164,8 @@ def setup_logger(settings: Config | dict[str, object] | None = None) -> None:
     ----------
     settings : Config or dict of str to object, optional
         Settings object containing a 'logging' configuration block.
+    log_file : str or Path, optional
+        Optional path to a log file where logs should be saved.
     """
     if isinstance(settings, (Config, dict)):
         log_config = settings.get('logging')
@@ -175,6 +180,26 @@ def setup_logger(settings: Config | dict[str, object] | None = None) -> None:
             level=logging.INFO,
             format='%(asctime)s [%(levelname)s] [%(name)s] %(message)s',
         )
+
+    # Attach file handler if log_file is provided
+    if log_file is not None:
+        file_path = Path(log_file).resolve()
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        root_logger = logging.getLogger()
+        already_attached = any(
+            isinstance(h, logging.FileHandler)
+            and Path(h.baseFilename).resolve() == file_path
+            for h in root_logger.handlers
+        )
+        if not already_attached:
+            handler = logging.FileHandler(str(file_path), encoding='utf-8')
+            handler.setLevel(logging.DEBUG)
+            handler.setFormatter(
+                logging.Formatter(
+                    '%(asctime)s [%(levelname)s] [%(name)s] %(message)s'
+                )
+            )
+            root_logger.addHandler(handler)
 
     # Force AutoGluon to use our logging configuration
     ag_logger = logging.getLogger('autogluon')
