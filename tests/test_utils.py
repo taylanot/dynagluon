@@ -32,10 +32,10 @@ def test_config_pretty_print_rich():
         cfg.pretty_print()
         mock_rprint.assert_called_once_with({'a': 1})
 
-def test_setup_logger():
+def test_setup_logger(tmp_path):
     # test default fallback
     setup_logger()
-    
+
     # test with dict config
     log_cfg = {
         'logging': {
@@ -46,6 +46,13 @@ def test_setup_logger():
         }
     }
     setup_logger(Config(data=log_cfg))
+
+    # test with log_file parameter
+    log_file = tmp_path / 'custom_run.log'
+    setup_logger(log_file=log_file)
+    logging.getLogger().info('Log file test message')
+    assert log_file.exists()
+    assert 'Log file test message' in log_file.read_text(encoding='utf-8')
 
 def test_load_config_helper():
     yaml_path = Path(__file__).parent / 'test_configs' / 'test_utils_config.yaml'

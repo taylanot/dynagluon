@@ -46,6 +46,9 @@ def test_engine_train_predict(dummy_data, dummy_config):
     engine.train(train_csv)
 
     assert os.path.exists(dummy_config['save_path'])
+    log_file = os.path.join(dummy_config['save_path'], 'run.log')
+    assert os.path.exists(log_file)
+    assert 'Loading data from' in Path(log_file).read_text(encoding='utf-8')
 
     # 2. Test Predict
     out_csv = os.path.join(dummy_config['save_path'], 'preds.csv')
