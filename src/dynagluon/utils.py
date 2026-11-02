@@ -76,8 +76,21 @@ class Config:
         dynaconf_obj = Dynaconf(**kwargs)
 
         if namespace:
-            val = dynaconf_obj.get(namespace, {})
-            extracted = val if isinstance(val, dict) else {}
+            val = dynaconf_obj.get(namespace)
+            if val is not None and hasattr(val, 'to_dict'):
+                extracted = val.to_dict()
+            elif isinstance(val, dict):
+                extracted = val
+            else:
+                extracted = {}
+
+            # If namespace refers to the environment root (e.g. 'default') and no nested
+            # subsection was found, fallback to the environment's root settings
+            if not extracted and namespace.lower() in (
+                'default',
+                (env or 'default').lower(),
+            ):
+                extracted = dynaconf_obj.to_dict()
         else:
             extracted = dynaconf_obj.to_dict()
 
@@ -138,15 +151,31 @@ class Config:
         object
             Retrieved value or default.
         """
-        return self.data.get(key, default)
+        if key in self.data:
+            return self.data.get(key, default)
+        if key.upper() in self.data:
+            return self.data.get(key.upper(), default)
+        if key.lower() in self.data:
+            return self.data.get(key.lower(), default)
+        return default
 
     def __getitem__(self, key: str) -> object:
         """Get an item from the configuration."""
+        if key in self.data:
+            return self.data[key]
+        if key.upper() in self.data:
+            return self.data[key.upper()]
+        if key.lower() in self.data:
+            return self.data[key.lower()]
         return self.data[key]
 
     def __contains__(self, key: str) -> bool:
         """Check if a key exists in the configuration."""
-        return key in self.data
+        return (
+            key in self.data
+            or key.upper() in self.data
+            or key.lower() in self.data
+        )
 
     def __bool__(self) -> bool:
         """Check if the configuration is not empty."""
