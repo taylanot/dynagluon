@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -49,6 +50,19 @@ def test_engine_train_predict(dummy_data, dummy_config):
     log_file = os.path.join(dummy_config['save_path'], 'run.log')
     assert os.path.exists(log_file)
     assert 'Loading data from' in Path(log_file).read_text(encoding='utf-8')
+
+    summary_file = os.path.join(dummy_config['save_path'], 'run_summary.json')
+    leaderboard_file = os.path.join(dummy_config['save_path'], 'leaderboard.parquet')
+    assert os.path.exists(summary_file)
+    assert os.path.exists(leaderboard_file)
+
+    with open(summary_file, 'r', encoding='utf-8') as f:
+        summary_data = json.load(f)
+    assert 'best_model' in summary_data
+    assert 'best_model_hyperparameters' in summary_data
+    assert 'top_3_models' in summary_data
+    assert summary_data['total_models_trained'] > 0
+    assert len(summary_data['top_3_models']) > 0
 
     # 2. Test Predict
     out_csv = os.path.join(dummy_config['save_path'], 'preds.csv')

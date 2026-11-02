@@ -1,7 +1,8 @@
-"""TabDynaGluon engine for training and inference."""
-
+from datetime import UTC, datetime
+import json
 import logging
 from pathlib import Path
+import time
 
 from autogluon.tabular import TabularPredictor
 import pandas as pd
@@ -107,14 +108,190 @@ class TabDynaGluonEngine:
             path=self.save_path,
         )
 
+        start_time = time.perf_counter()
+
         logger.info('Starting AutoGluon training...')
         self.predictor.fit(
             train_data=ag_train_data,
             **fit_kwargs,
         )
 
-        logger.info('Training complete.')
+        fit_duration = time.perf_counter() - start_time
+        logger.info('Training complete in %.2f seconds.', fit_duration)
+
+        # Save run summary and leaderboard artifacts
+        self._save_run_summary(
+            train_data_path=train_data_path,
+            num_rows=len(ag_train_data),
+            duration_seconds=fit_duration,
+        )
+
         return self.predictor
+
+    def _extract_model_hyperparameters(
+        self, model_name: str
+    ) -> dict[str, object]:
+        """Extract model details: weights for ensembles, or hyperparameters for single/bagged models."""
+        if self.predictor is None:
+            return {}
+
+        weights: dict[str, float] = {}
+        try:
+            m_obj = self.predictor._trainer.load_model(model_name)  # noqa: SLF001
+            if hasattr(m_obj, 'get_model_weights') and callable(
+                m_obj.get_model_weights
+            ):
+                weights = m_obj.get_model_weights()
+            elif (
+                hasattr(m_obj, 'model')
+                and hasattr(m_obj.model, 'get_model_weights')
+                and callable(m_obj.model.get_model_weights)
+            ):
+                weights = m_obj.model.get_model_weights()
+            elif hasattr(m_obj, 'model') and hasattr(m_obj.model, 'weights'):
+                weights = m_obj.model.weights
+            elif hasattr(m_obj, 'model') and hasattr(m_obj.model, 'get_info'):
+                info = m_obj.model.get_info()
+                if (
+                    isinstance(info, dict)
+                    and 'weights' in info
+                    and isinstance(info['weights'], dict)
+                ):
+                    weights = info['weights']
+        except (
+            AttributeError,
+            KeyError,
+            TypeError,
+            ValueError,
+            RuntimeError,
+        ) as e:
+            logger.debug(
+                'Could not inspect model weights for %s: %s', model_name, e
+            )
+
+        if weights:
+            active_weights = {
+                str(k): float(v) for k, v in weights.items() if float(v) > 0
+            }
+            return {
+                'type': 'ensemble',
+                'model_name': model_name,
+                'ensemble_weights': active_weights,
+            }
+
+        # For base or bagged models, use predictor.model_hyperparameters
+        try:
+            hps = self.predictor.model_hyperparameters(model=model_name)
+            hps_dict = hps if isinstance(hps, dict) else {}
+        except (
+            AttributeError,
+            KeyError,
+            TypeError,
+            ValueError,
+            RuntimeError,
+        ) as e:
+            logger.debug(
+                'Could not get hyperparameters for %s: %s', model_name, e
+            )
+            hps_dict = {}
+
+        return {
+            'type': 'single_model',
+            'model_name': model_name,
+            'hyperparameters': hps_dict,
+        }
+
+    def _save_run_summary(
+        self, train_data_path: str, num_rows: int, duration_seconds: float
+    ) -> None:
+        """Export run summary JSON and leaderboard parquet for experiment tracking."""
+        if self.predictor is None:
+            return
+
+        save_dir = Path(self.save_path)
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            leaderboard_df = self.predictor.leaderboard(silent=True)
+            leaderboard_path = save_dir / 'leaderboard.parquet'
+            leaderboard_df.to_parquet(leaderboard_path, index=False)
+            logger.info('Leaderboard saved to %s', leaderboard_path)
+
+            best_model = str(self.predictor.model_best)
+            best_score_row = leaderboard_df.loc[
+                leaderboard_df['model'] == best_model
+            ]
+            best_score = (
+                float(best_score_row['score_val'].values[0])
+                if not best_score_row.empty
+                and pd.notna(best_score_row['score_val'].values[0])
+                else None
+            )
+
+            eval_metric = (
+                self.predictor.eval_metric.name
+                if hasattr(self.predictor, 'eval_metric')
+                else 'unknown'
+            )
+
+            # Extract details for top 3 models
+            top_3_rows = leaderboard_df.head(3)
+            top_3_models_info: list[dict[str, object]] = []
+            for rank, (_, row) in enumerate(top_3_rows.iterrows(), start=1):
+                m_name = str(row['model'])
+                m_score = (
+                    float(row['score_val'])
+                    if pd.notna(row['score_val'])
+                    else None
+                )
+                m_fit_time = (
+                    float(row['fit_time'])
+                    if 'fit_time' in row and pd.notna(row['fit_time'])
+                    else None
+                )
+                m_details = self._extract_model_hyperparameters(m_name)
+                top_3_models_info.append(
+                    {
+                        'rank': rank,
+                        'model_name': m_name,
+                        'validation_score': m_score,
+                        'fit_time_seconds': m_fit_time,
+                        'model_details': m_details,
+                    }
+                )
+
+            best_model_details = self._extract_model_hyperparameters(
+                best_model
+            )
+
+            summary = {
+                'timestamp': datetime.now(UTC).isoformat(),
+                'target_column': str(self.target_column),
+                'problem_type': str(self.predictor.problem_type),
+                'eval_metric': eval_metric,
+                'train_data_path': str(train_data_path),
+                'train_rows_count': num_rows,
+                'total_fit_duration_seconds': round(duration_seconds, 2),
+                'total_models_trained': len(leaderboard_df),
+                'best_model': best_model,
+                'best_validation_score': best_score,
+                'best_model_hyperparameters': best_model_details,
+                'top_3_models': top_3_models_info,
+            }
+
+            summary_path = save_dir / 'run_summary.json'
+            with summary_path.open('w', encoding='utf-8') as f:
+                json.dump(summary, f, indent=2, default=str)
+            logger.info('Run summary saved to %s', summary_path)
+        except (
+            OSError,
+            ValueError,
+            TypeError,
+            KeyError,
+            RuntimeError,
+            AttributeError,
+        ) as e:
+            logger.warning('Failed to save run summary artifacts: %s', e)
 
     @classmethod
     def load(
