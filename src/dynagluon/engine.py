@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 import json
 import logging
 from pathlib import Path
+import shutil
 import time
 
 from autogluon.tabular import TabularPredictor
@@ -86,6 +87,32 @@ class TabDynaGluonEngine:
         if not self.target_column:
             raise ValueError("Configuration must define 'target_column'.")
 
+        # Check if model already exists and refit or extend is requested
+        if self._is_trained_predictor_dir(self.save_path):
+            if self.config.get('refit_if_exists', False):
+                logger.info(
+                    'Existing model detected at %s with refit_if_exists=True. Running refit...',
+                    self.save_path,
+                )
+                target = self.config.get('new_save_path')
+                model_to_refit = str(self.config.get('refit_model', 'best'))
+                return self.refit(
+                    new_save_path=str(target) if target else None,
+                    model=model_to_refit,
+                )
+
+            if self.config.get('extend_if_exists', False) or self.config.get(
+                'fit_extra_if_exists', False
+            ):
+                logger.info(
+                    'Existing model detected at %s with extend_if_exists=True. Running extend...',
+                    self.save_path,
+                )
+                target = self.config.get('new_save_path')
+                return self.extend(
+                    new_save_path=str(target) if target else None,
+                )
+
         # Configure file logging to save_path/run.log if enabled
         if self.config.get('log_to_file', True) and self.save_path:
             setup_logger(log_file=Path(self.save_path) / 'run.log')
@@ -126,6 +153,216 @@ class TabDynaGluonEngine:
             duration_seconds=fit_duration,
         )
 
+        return self.predictor
+
+    @staticmethod
+    def _is_trained_predictor_dir(path: Path | str) -> bool:
+        """Check if a directory contains an existing trained AutoGluon predictor."""
+        p = Path(path)
+        if not p.is_dir():
+            return False
+        if hasattr(TabularPredictor, 'can_load'):
+            try:
+                return bool(TabularPredictor.can_load(str(p)))
+            except (AttributeError, TypeError, OSError, ValueError) as e:
+                logger.debug(
+                    'TabularPredictor.can_load check failed for %s: %s', p, e
+                )
+        return (p / 'predictor_metadata.json').exists() or (
+            p / 'models'
+        ).exists()
+
+    def extend(
+        self,
+        new_save_path: str | Path | None = None,
+    ) -> TabularPredictor:
+        """
+        Extend an existing trained model with additional models or search trials.
+
+        Parameters
+        ----------
+        new_save_path : str or Path, optional
+            Target directory to save the extended model. If None, an isolated
+            directory '<save_path>_extended_<timestamp>' is created.
+
+        Returns
+        -------
+        TabularPredictor
+            The updated AutoGluon predictor.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the source model directory does not exist.
+        """
+        source_dir = Path(self.save_path)
+        if not source_dir.exists():
+            raise FileNotFoundError(
+                f'Source model directory does not exist: {source_dir}'
+            )
+
+        # Resolve destination path
+        if new_save_path:
+            target_dir = Path(new_save_path)
+        else:
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            clean_base = str(self.save_path).rstrip('/\\')
+            target_dir = Path(f'{clean_base}_extended_{timestamp}')
+
+        logger.info('=' * 70)
+        logger.info('Starting model extension (fit_extra)')
+        logger.info('Source model directory : %s', source_dir)
+        logger.info('Target run directory   : %s', target_dir)
+        logger.info('=' * 70)
+
+        # Clone artifacts into the target directory if separate from source
+        if target_dir.resolve() != source_dir.resolve():
+            logger.info(
+                'Cloning original model artifacts from %s to %s...',
+                source_dir,
+                target_dir,
+            )
+            target_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+            self.save_path = str(target_dir)
+
+        # Load predictor pointing to target directory
+        logger.info('Loading predictor from %s...', self.save_path)
+        self.predictor = TabularPredictor.load(
+            self.save_path, require_version_match=False
+        )
+
+        # Configure file logging inside the target run directory
+        if self.config.get('log_to_file', True):
+            setup_logger(log_file=Path(self.save_path) / 'run.log')
+
+        # Extract hyperparameters and optional time_limit from fit_kwargs
+        fit_kwargs_raw = self.config.get('autogluon_fit_kwargs', {})
+        fit_kwargs = resolve_config(fit_kwargs_raw)
+        extra_kwargs: dict[str, object] = {}
+        hyperparameters: object = 'default'
+        if isinstance(fit_kwargs, dict):
+            if 'time_limit' in fit_kwargs:
+                extra_kwargs['time_limit'] = fit_kwargs['time_limit']
+            if fit_kwargs.get('hyperparameters'):
+                hyperparameters = fit_kwargs['hyperparameters']
+
+        start_time = time.perf_counter()
+        logger.info('Executing predictor.fit_extra()...')
+        self.predictor.fit_extra(
+            hyperparameters,
+            **extra_kwargs,
+        )
+
+        duration = time.perf_counter() - start_time
+        logger.info('Extension completed in %.2f seconds.', duration)
+
+        # Save run summary and leaderboard artifacts in target directory
+        self._save_run_summary(
+            train_data_path=str(self.save_path),
+            num_rows=0,
+            duration_seconds=duration,
+        )
+
+        logger.info(
+            'Extension artifacts successfully saved to: %s',
+            self.save_path,
+        )
+        return self.predictor
+
+    def fit_extra(
+        self,
+        new_save_path: str | Path | None = None,
+    ) -> TabularPredictor:
+        """Alias for extend."""
+        return self.extend(new_save_path=new_save_path)
+
+    def refit(
+        self,
+        new_save_path: str | Path | None = None,
+        model: str = 'best',
+    ) -> TabularPredictor:
+        """
+        Refit models on 100% of data without fold splits for deployment.
+
+        Parameters
+        ----------
+        new_save_path : str or Path, optional
+            Target directory to save the refitted model. If None, an isolated
+            directory '<save_path>_refit_<timestamp>' is created.
+        model : str, default 'best'
+            Model or models to refit ('best' or specific model name).
+
+        Returns
+        -------
+        TabularPredictor
+            The updated AutoGluon predictor.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the source model directory does not exist.
+        """
+        source_dir = Path(self.save_path)
+        if not source_dir.exists():
+            raise FileNotFoundError(
+                f'Source model directory does not exist: {source_dir}'
+            )
+
+        # Resolve destination path
+        if new_save_path:
+            target_dir = Path(new_save_path)
+        else:
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
+            clean_base = str(self.save_path).rstrip('/\\')
+            target_dir = Path(f'{clean_base}_refit_{timestamp}')
+
+        logger.info('=' * 70)
+        logger.info('Starting model refit (refit_full)')
+        logger.info('Source model directory : %s', source_dir)
+        logger.info('Target run directory   : %s', target_dir)
+        logger.info('Refit model target     : %s', model)
+        logger.info('=' * 70)
+
+        # Clone artifacts into the target directory if separate from source
+        if target_dir.resolve() != source_dir.resolve():
+            logger.info(
+                'Cloning original model artifacts from %s to %s...',
+                source_dir,
+                target_dir,
+            )
+            target_dir.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+            self.save_path = str(target_dir)
+
+        # Load predictor pointing to target directory
+        logger.info('Loading predictor from %s...', self.save_path)
+        self.predictor = TabularPredictor.load(
+            self.save_path, require_version_match=False
+        )
+
+        # Configure file logging inside the target run directory
+        if self.config.get('log_to_file', True):
+            setup_logger(log_file=Path(self.save_path) / 'run.log')
+
+        start_time = time.perf_counter()
+        logger.info('Executing predictor.refit_full(model=%s)...', model)
+        self.predictor.refit_full(model=model, set_best_to_refit_full=True)
+
+        duration = time.perf_counter() - start_time
+        logger.info('refit_full completed in %.2f seconds.', duration)
+
+        # Save run summary and leaderboard artifacts in target directory
+        self._save_run_summary(
+            train_data_path=str(self.save_path),
+            num_rows=0,
+            duration_seconds=duration,
+        )
+
+        logger.info(
+            'Refit artifacts successfully saved to: %s',
+            self.save_path,
+        )
         return self.predictor
 
     def _extract_model_hyperparameters(

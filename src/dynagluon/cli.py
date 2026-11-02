@@ -50,9 +50,60 @@ def build_parser() -> argparse.ArgumentParser:
         '--data', required=True, type=Path, help='Path to training CSV data'
     )
 
-    # --- Retrain subcommand ---
+    # --- Extend subcommand (fit_extra) ---
+    extend_cmd = subparsers.add_parser(
+        'extend',
+        help='Extend an existing model with additional models or search trials',
+    )
+    extend_cmd.add_argument(
+        '--model-path',
+        required=True,
+        type=Path,
+        help='Path to the existing AutogluonModels directory',
+    )
+    extend_cmd.add_argument(
+        '--config',
+        default='config.yaml',
+        help='Configuration file name inside model directory (default: config.yaml)',
+    )
+    extend_cmd.add_argument(
+        '--output-dir',
+        default=None,
+        type=Path,
+        help='Target directory to save the extended model (default: auto-generated)',
+    )
+
+    # --- Refit subcommand (refit_full) ---
+    refit_cmd = subparsers.add_parser(
+        'refit',
+        help='Refit trained models on 100% of data for deployment',
+    )
+    refit_cmd.add_argument(
+        '--model-path',
+        required=True,
+        type=Path,
+        help='Path to the existing AutogluonModels directory',
+    )
+    refit_cmd.add_argument(
+        '--config',
+        default='config.yaml',
+        help='Configuration file name inside model directory (default: config.yaml)',
+    )
+    refit_cmd.add_argument(
+        '--output-dir',
+        default=None,
+        type=Path,
+        help='Target directory to save the refitted model (default: auto-generated)',
+    )
+    refit_cmd.add_argument(
+        '--model',
+        default='best',
+        help="Model or models to refit: 'best' or specific model name (default: best)",
+    )
+
+    # --- Retrain subcommand (legacy alias for extend) ---
     retrain_cmd = subparsers.add_parser(
-        'retrain', help='Retrain an existing model with new data'
+        'retrain', help='Retrain/extend an existing model (alias for extend)'
     )
     retrain_cmd.add_argument(
         '--model-path',
@@ -62,14 +113,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     retrain_cmd.add_argument(
         '--data',
-        required=True,
+        required=False,
+        default=None,
         type=Path,
-        help='Path to new training CSV data',
+        help='Optional data path (kept for backwards compatibility)',
     )
     retrain_cmd.add_argument(
         '--config',
         default='config.yaml',
         help='Configuration file name inside model directory (default: config.yaml)',
+    )
+    retrain_cmd.add_argument(
+        '--output-dir',
+        default=None,
+        type=Path,
+        help='Target directory to save the extended model (default: auto-generated)',
     )
 
     # --- Predict subcommand ---
@@ -124,32 +182,60 @@ def _run_train(args: argparse.Namespace, settings: Config) -> int:
     return 0
 
 
-def _run_retrain(args: argparse.Namespace) -> int:
+def _run_extend(args: argparse.Namespace) -> int:
     if not args.model_path.exists():
         logger.error('Model path does not exist: %s', args.model_path)
         return 1
 
     config_path = args.model_path / args.config
-    if not config_path.exists():
-        logger.error(
-            'Configuration file not found in model directory: %s',
-            config_path,
-        )
-        return 1
-
-    # Check for 'retrain' section first, fallback to 'train' section
-    config = Config.load(config_path, namespace='retrain', env=args.env)
+    # Check for 'extend' section first, fallback to 'retrain' or 'train'
+    config = Config.load(config_path, namespace='extend', env=args.env)
+    if not config:
+        config = Config.load(config_path, namespace='retrain', env=args.env)
     if not config:
         config = Config.load(config_path, namespace='train', env=args.env)
 
     logger.info(
-        'Retraining configuration loaded from %s: %s',
+        'Extension configuration loaded from %s: %s',
         config_path,
         config.to_dict(),
     )
-    # TODO: engine = TabDynaGluonEngine.load(args.model_path)
-    # TODO: engine.retrain(train_data=args.data, config=config.to_dict())
+    output_dir = str(args.output_dir) if args.output_dir else None
+    engine = TabDynaGluonEngine.load(
+        str(args.model_path), config_dict=config.to_dict()
+    )
+    engine.extend(new_save_path=output_dir)
     return 0
+
+
+def _run_refit(args: argparse.Namespace) -> int:
+    if not args.model_path.exists():
+        logger.error('Model path does not exist: %s', args.model_path)
+        return 1
+
+    config_path = args.model_path / args.config
+    config = Config.load(config_path, namespace='refit', env=args.env)
+    if not config:
+        config = Config.load(config_path, namespace='train', env=args.env)
+
+    logger.info(
+        'Refit configuration loaded from %s: %s',
+        config_path,
+        config.to_dict(),
+    )
+    output_dir = str(args.output_dir) if args.output_dir else None
+    model_target = (
+        str(args.model) if hasattr(args, 'model') and args.model else 'best'
+    )
+    engine = TabDynaGluonEngine.load(
+        str(args.model_path), config_dict=config.to_dict()
+    )
+    engine.refit(new_save_path=output_dir, model=model_target)
+    return 0
+
+
+def _run_retrain(args: argparse.Namespace) -> int:
+    return _run_extend(args)
 
 
 def _run_predict(args: argparse.Namespace) -> int:
@@ -192,13 +278,19 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug('Verbose debug logging enabled.')
 
-    # Fast early validation of data file
-    if not args.data.exists():
+    # Fast early validation of data file for commands that require it
+    if (
+        hasattr(args, 'data')
+        and args.data is not None
+        and not args.data.exists()
+    ):
         logger.error('Data file does not exist: %s', args.data)
         return 1
 
     handlers = {
         'train': lambda: _run_train(args, settings),
+        'extend': lambda: _run_extend(args),
+        'refit': lambda: _run_refit(args),
         'retrain': lambda: _run_retrain(args),
         'predict': lambda: _run_predict(args),
     }

@@ -125,3 +125,47 @@ default:
     assert os.path.exists(out_csv)
     assert len(preds_df) == 20
     assert loaded_engine.config.get('model') == specific_model
+
+
+def test_engine_extend(dummy_data, dummy_config, tmp_path):
+    train_csv, _ = dummy_data
+
+    # 1. Initial train
+    engine = TabDynaGluonEngine(config_dict=dummy_config)
+    engine.train(train_csv)
+    original_save_path = Path(dummy_config['save_path'])
+    assert (original_save_path / 'run_summary.json').exists()
+
+    # 2. Run extend into a new save_path
+    new_save_path = tmp_path / 'AutogluonModels_extended'
+    updated_predictor = engine.extend(new_save_path=new_save_path)
+
+    assert updated_predictor is not None
+    assert new_save_path.exists()
+    assert (new_save_path / 'run.log').exists()
+    assert (new_save_path / 'run_summary.json').exists()
+    assert (new_save_path / 'leaderboard.parquet').exists()
+
+    # Verify original run directory remains intact
+    assert original_save_path.exists()
+    assert (original_save_path / 'run.log').exists()
+
+
+def test_engine_refit(dummy_data, dummy_config, tmp_path):
+    train_csv, _ = dummy_data
+
+    # 1. Initial train
+    engine = TabDynaGluonEngine(config_dict=dummy_config)
+    engine.train(train_csv)
+    original_save_path = Path(dummy_config['save_path'])
+
+    # 2. Run refit into a new save_path
+    refit_save_path = tmp_path / 'AutogluonModels_refit'
+    refitted_predictor = engine.refit(new_save_path=refit_save_path, model='best')
+
+    assert refitted_predictor is not None
+    assert refit_save_path.exists()
+    assert (refit_save_path / 'run.log').exists()
+    assert (refit_save_path / 'run_summary.json').exists()
+    assert (refit_save_path / 'leaderboard.parquet').exists()
+    assert original_save_path.exists()
