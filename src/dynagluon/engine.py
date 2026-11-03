@@ -594,12 +594,15 @@ class TabDynaGluonEngine:
         ag_test_data = self._load_data(test_data_path)
 
         # 2. Extract specific model name if provided in config
-        model_to_use = self.config.get('model', None)
-        if model_to_use:
+        model_config = self.config.get('model', None)
+        if model_config and str(model_config).strip().lower() != 'best':
+            model_to_use = str(model_config).strip()
             logger.info('Using specific model from config: %s', model_to_use)
         else:
+            model_to_use = None
+            best_model_name = getattr(self.predictor, 'model_best', 'best')
             logger.info(
-                'No specific model provided, using default (best) model.'
+                'Using default best model for predictions: %s', best_model_name
             )
 
         # 3. Predict (Returns a Pandas Series or DataFrame)

@@ -127,6 +127,27 @@ default:
     assert loaded_engine.config.get('model') == specific_model
 
 
+def test_engine_predict_best_model_config(dummy_data, dummy_config, tmp_path):
+    train_csv, test_csv = dummy_data
+
+    # 1. Train model
+    engine = TabDynaGluonEngine(config_dict=dummy_config)
+    engine.train(train_csv)
+
+    # 2. Load engine with config specifying model: "best"
+    loaded_engine = TabDynaGluonEngine.load(
+        dummy_config['save_path'],
+        config_dict={'model': 'best'},
+    )
+
+    # 3. Predict must resolve 'best' to default model without NetworkXError
+    out_csv = str(tmp_path / 'preds_best.csv')
+    preds_df = loaded_engine.predict(test_csv, output_path=out_csv)
+
+    assert os.path.exists(out_csv)
+    assert len(preds_df) == 20
+
+
 def test_engine_extend(dummy_data, dummy_config, tmp_path):
     train_csv, _ = dummy_data
 
