@@ -137,3 +137,54 @@ def test_cli_retrain_basic(tmp_path):
             assert ret == 0
             mock_load.assert_called_once()
             mock_engine.extend.assert_called_once()
+
+
+def test_cli_extend_config_required(tmp_path):
+    model_path = tmp_path / 'model'
+    model_path.mkdir()
+    # extend subcommand must fail if --config is omitted
+    with patch('sys.argv', ['dynagluon', 'extend', '--model-path', str(model_path)]):
+        try:
+            ret = cli.main()
+            assert ret != 0
+        except SystemExit as e:
+            assert e.code != 0
+
+
+def test_cli_extend_external_config(tmp_path):
+    model_path = tmp_path / 'model'
+    model_path.mkdir()
+    external_config = tmp_path / 'my_external_config.yaml'
+    external_config.write_text("extend:\n  time_limit: 10\n")
+
+    with patch('dynagluon.cli.TabDynaGluonEngine.load') as mock_load:
+        mock_engine = mock_load.return_value
+        mock_engine.extend.return_value = None
+        argv = [
+            'dynagluon',
+            'extend',
+            '--model-path',
+            str(model_path),
+            '--config',
+            str(external_config),
+        ]
+        with patch('sys.argv', argv):
+            ret = cli.main()
+            assert ret == 0
+            mock_load.assert_called_once()
+            mock_engine.extend.assert_called_once()
+
+
+def test_cli_refit_without_config(tmp_path):
+    model_path = tmp_path / 'model'
+    model_path.mkdir()
+    # refit subcommand does NOT require --config
+    with patch('dynagluon.cli.TabDynaGluonEngine.load') as mock_load:
+        mock_engine = mock_load.return_value
+        mock_engine.refit.return_value = None
+        argv = ['dynagluon', 'refit', '--model-path', str(model_path)]
+        with patch('sys.argv', argv):
+            ret = cli.main()
+            assert ret == 0
+            mock_load.assert_called_once()
+            mock_engine.refit.assert_called_once()

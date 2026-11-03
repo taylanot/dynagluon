@@ -5,6 +5,7 @@ import argparse
 import importlib.metadata
 import logging
 from pathlib import Path
+import shutil
 import sys
 
 from dynagluon.engine import TabDynaGluonEngine
@@ -63,8 +64,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     extend_cmd.add_argument(
         '--config',
-        default='config.yaml',
-        help='Configuration file name inside model directory (default: config.yaml)',
+        required=True,
+        type=Path,
+        help='Path to configuration YAML file for extension',
     )
     extend_cmd.add_argument(
         '--output-dir',
@@ -86,8 +88,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     refit_cmd.add_argument(
         '--config',
-        default='config.yaml',
-        help='Configuration file name inside model directory (default: config.yaml)',
+        required=False,
+        default=None,
+        type=Path,
+        help='Optional configuration file (default: None, not required for refit)',
     )
     refit_cmd.add_argument(
         '--output-dir',
@@ -120,8 +124,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     retrain_cmd.add_argument(
         '--config',
-        default='config.yaml',
-        help='Configuration file name inside model directory (default: config.yaml)',
+        required=False,
+        default=None,
+        type=Path,
+        help='Optional configuration file (default: None, falls back to model config)',
     )
     retrain_cmd.add_argument(
         '--output-dir',
@@ -176,10 +182,30 @@ def _run_train(args: argparse.Namespace, settings: Config) -> int:
     engine.train(train_data_path=str(args.data))
 
     # Save config into the model output folder for record-keeping
-    model_save_path = engine.save_path
-    Path(model_save_path).mkdir(parents=True, exist_ok=True)
-    config.save(Path(model_save_path) / 'config.yaml')
+    model_save_path = Path(engine.save_path)
+    model_save_path.mkdir(parents=True, exist_ok=True)
+    try:
+        shutil.copyfile(args.config, model_save_path / 'config.yaml')
+    except (OSError, shutil.SameFileError):
+        config.save(model_save_path / 'config.yaml')
     return 0
+
+
+def _resolve_config_path(
+    config_arg: Path | str | None, model_path: Path
+) -> Path | None:
+    """Resolve a config path from CLI argument or model directory."""
+    if config_arg:
+        p = Path(config_arg)
+        if p.exists():
+            return p
+        model_p = model_path / p
+        if model_p.exists():
+            return model_p
+        return None
+
+    fallback = model_path / 'config.yaml'
+    return fallback if fallback.exists() else None
 
 
 def _run_extend(args: argparse.Namespace) -> int:
@@ -187,11 +213,12 @@ def _run_extend(args: argparse.Namespace) -> int:
         logger.error('Model path does not exist: %s', args.model_path)
         return 1
 
-    config_path = args.model_path / args.config
-    if not config_path.exists():
+    config_path = _resolve_config_path(args.config, args.model_path)
+    if not config_path:
         logger.error(
-            'Configuration file not found in model directory: %s',
-            config_path,
+            'Configuration file not found: %s (also checked inside %s)',
+            args.config,
+            args.model_path,
         )
         return 1
 
@@ -220,29 +247,36 @@ def _run_refit(args: argparse.Namespace) -> int:
         logger.error('Model path does not exist: %s', args.model_path)
         return 1
 
-    config_path = args.model_path / args.config
-    if not config_path.exists():
-        logger.error(
-            'Configuration file not found in model directory: %s',
+    config_dict: dict[str, object] = {}
+    config_path = _resolve_config_path(args.config, args.model_path)
+    if config_path:
+        config = Config.load(config_path, namespace='refit', env=args.env)
+        if not config:
+            config = Config.load(config_path, namespace='train', env=args.env)
+        config_dict = config.to_dict()
+        logger.info(
+            'Refit configuration loaded from %s: %s',
             config_path,
+            config_dict,
+        )
+    elif args.config:
+        logger.error(
+            'Configuration file not found: %s (also checked inside %s)',
+            args.config,
+            args.model_path,
         )
         return 1
+    else:
+        logger.info(
+            'No configuration file specified for refit. Proceeding with default settings.'
+        )
 
-    config = Config.load(config_path, namespace='refit', env=args.env)
-    if not config:
-        config = Config.load(config_path, namespace='train', env=args.env)
-
-    logger.info(
-        'Refit configuration loaded from %s: %s',
-        config_path,
-        config.to_dict(),
-    )
     output_dir = str(args.output_dir) if args.output_dir else None
     model_target = (
         str(args.model) if hasattr(args, 'model') and args.model else 'best'
     )
     engine = TabDynaGluonEngine.load(
-        str(args.model_path), config_dict=config.to_dict()
+        str(args.model_path), config_dict=config_dict
     )
     engine.refit(new_save_path=output_dir, model=model_target)
     return 0
