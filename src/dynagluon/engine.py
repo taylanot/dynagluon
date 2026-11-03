@@ -175,6 +175,7 @@ class TabDynaGluonEngine:
     def extend(
         self,
         new_save_path: str | Path | None = None,
+        fit_weighted_ensemble: bool | None = None,
     ) -> TabularPredictor:
         """
         Extend an existing trained model with additional models or search trials.
@@ -184,6 +185,9 @@ class TabDynaGluonEngine:
         new_save_path : str or Path, optional
             Target directory to save the extended model. If None, an isolated
             directory '<save_path>_extended_<timestamp>' is created.
+        fit_weighted_ensemble : bool, optional
+            Whether to fit a new weighted ensemble combining original and new models.
+            Defaults to True (or read from config 'fit_weighted_ensemble').
 
         Returns
         -------
@@ -254,6 +258,32 @@ class TabDynaGluonEngine:
             **extra_kwargs,
         )
 
+        # Re-fit weighted ensemble over the combined model pool if enabled
+        should_fit_ensemble = (
+            fit_weighted_ensemble
+            if fit_weighted_ensemble is not None
+            else bool(self.config.get('fit_weighted_ensemble', True))
+        )
+        if should_fit_ensemble and hasattr(
+            self.predictor, 'fit_weighted_ensemble'
+        ):
+            logger.info(
+                'Fitting new weighted ensemble on combined model pool...'
+            )
+            try:
+                new_ensembles = self.predictor.fit_weighted_ensemble()
+                logger.info(
+                    'Newly created weighted ensemble(s): %s', new_ensembles
+                )
+            except (
+                AttributeError,
+                KeyError,
+                ValueError,
+                RuntimeError,
+                OSError,
+            ) as e:
+                logger.warning('Could not fit weighted ensemble: %s', e)
+
         duration = time.perf_counter() - start_time
         logger.info('Extension completed in %.2f seconds.', duration)
 
@@ -273,9 +303,13 @@ class TabDynaGluonEngine:
     def fit_extra(
         self,
         new_save_path: str | Path | None = None,
+        fit_weighted_ensemble: bool | None = None,
     ) -> TabularPredictor:
         """Alias for extend."""
-        return self.extend(new_save_path=new_save_path)
+        return self.extend(
+            new_save_path=new_save_path,
+            fit_weighted_ensemble=fit_weighted_ensemble,
+        )
 
     def refit(
         self,

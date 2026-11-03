@@ -74,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help='Target directory to save the extended model (default: auto-generated)',
     )
+    extend_cmd.add_argument(
+        '--no-ensemble',
+        action='store_true',
+        help='Skip fitting a new weighted ensemble over the combined model pool',
+    )
 
     # --- Refit subcommand (refit_full) ---
     refit_cmd = subparsers.add_parser(
