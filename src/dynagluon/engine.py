@@ -332,8 +332,18 @@ class TabDynaGluonEngine:
                 target_dir,
             )
             target_dir.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+            shutil.copytree(
+                source_dir,
+                target_dir,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns('run_summary.json'),
+            )
             self.save_path = str(target_dir)
+
+        # Remove run_summary.json if present (run_summary is only for train and extend)
+        summary_file = target_dir / 'run_summary.json'
+        if summary_file.exists():
+            summary_file.unlink()
 
         # Load predictor pointing to target directory
         logger.info('Loading predictor from %s...', self.save_path)
@@ -351,13 +361,6 @@ class TabDynaGluonEngine:
 
         duration = time.perf_counter() - start_time
         logger.info('refit_full completed in %.2f seconds.', duration)
-
-        # Save run summary and leaderboard artifacts in target directory
-        self._save_run_summary(
-            train_data_path=str(self.save_path),
-            num_rows=0,
-            duration_seconds=duration,
-        )
 
         logger.info(
             'Refit artifacts successfully saved to: %s',

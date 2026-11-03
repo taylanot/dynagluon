@@ -188,6 +188,13 @@ def _run_extend(args: argparse.Namespace) -> int:
         return 1
 
     config_path = args.model_path / args.config
+    if not config_path.exists():
+        logger.error(
+            'Configuration file not found in model directory: %s',
+            config_path,
+        )
+        return 1
+
     # Check for 'extend' section first, fallback to 'retrain' or 'train'
     config = Config.load(config_path, namespace='extend', env=args.env)
     if not config:
@@ -214,6 +221,13 @@ def _run_refit(args: argparse.Namespace) -> int:
         return 1
 
     config_path = args.model_path / args.config
+    if not config_path.exists():
+        logger.error(
+            'Configuration file not found in model directory: %s',
+            config_path,
+        )
+        return 1
+
     config = Config.load(config_path, namespace='refit', env=args.env)
     if not config:
         config = Config.load(config_path, namespace='train', env=args.env)
