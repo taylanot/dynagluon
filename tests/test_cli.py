@@ -129,7 +129,11 @@ def test_cli_retrain_basic(tmp_path):
     model_path.mkdir()
     config_path = model_path / 'config.yaml'
     config_path.write_text("train:\n  target_column: target\n")
-    with patch('sys.argv', ['dynagluon', 'retrain', '--model-path', str(model_path), '--data', str(train_path)]):
-        ret = cli.main()
-        # Right now retrain is just a TODO in cli.py, it should return 0 at the end
-        assert ret == 0
+    with patch('dynagluon.cli.TabDynaGluonEngine.load') as mock_load:
+        mock_engine = mock_load.return_value
+        mock_engine.extend.return_value = None
+        with patch('sys.argv', ['dynagluon', 'retrain', '--model-path', str(model_path), '--data', str(train_path)]):
+            ret = cli.main()
+            assert ret == 0
+            mock_load.assert_called_once()
+            mock_engine.extend.assert_called_once()

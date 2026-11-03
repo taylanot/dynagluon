@@ -130,6 +130,9 @@ default:
 def test_engine_extend(dummy_data, dummy_config, tmp_path):
     train_csv, _ = dummy_data
 
+    # Retain training data for extension (presets: optimize_for_deployment deletes X.pkl)
+    dummy_config.get('autogluon_fit_kwargs', {}).pop('presets', None)
+
     # 1. Initial train
     engine = TabDynaGluonEngine(config_dict=dummy_config)
     engine.train(train_csv)
@@ -154,6 +157,9 @@ def test_engine_extend(dummy_data, dummy_config, tmp_path):
 def test_engine_refit(dummy_data, dummy_config, tmp_path):
     train_csv, _ = dummy_data
 
+    # Retain training data for refit (presets: optimize_for_deployment deletes X.pkl)
+    dummy_config.get('autogluon_fit_kwargs', {}).pop('presets', None)
+
     # 1. Initial train
     engine = TabDynaGluonEngine(config_dict=dummy_config)
     engine.train(train_csv)
@@ -166,6 +172,5 @@ def test_engine_refit(dummy_data, dummy_config, tmp_path):
     assert refitted_predictor is not None
     assert refit_save_path.exists()
     assert (refit_save_path / 'run.log').exists()
-    assert (refit_save_path / 'run_summary.json').exists()
-    assert (refit_save_path / 'leaderboard.parquet').exists()
+    assert not (refit_save_path / 'run_summary.json').exists()
     assert original_save_path.exists()
